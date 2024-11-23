@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequential Multi-Timer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      padding: 0;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+    }
+    .timer-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .timer-form input, .timer-form button {
+      padding: 8px;
+      font-size: 16px;
+    }
+    .timer-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .timer-item {
+      display: flex;
+      justify-content: space-between;
+      width: 90%;
+      margin-left: 50px;
+      align-items: center;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-size: 18px;
+      transition: font-size 0.3s, transform 0.3s;
+    }
+    .timer-item.active {
+      border: 2px solid #4caf50;
+      font-size: 24px;
+      transform: scale(1.1);
+    }
+    .timer-item.shrinking {
+      font-size: 16px;
+      transform: scale(0.9);
+    }
+    .timer-item button {
+      background-color: #ff4d4f;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .timer-item button:hover {
+      background-color: #e63946;
+    }
+    .start-timers {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .start-timers:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .elapsed-time {
+      font-size: 16px;
+      margin-left: 20px;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sequential Multi-Timer App</h1>
+  <form id="timerForm" class="timer-form">
+    <input type="text" id="purposeInput" placeholder="Purpose of Timer" required>
+    <input type="number" id="minutesInput" placeholder="Minutes" min="1" required>
+    <input type="text" id="tagsInput" placeholder="Tags (comma separated)" required>
+    <button type="submit">Add Timer</button>
+  </form>
+  <div>
+    <button id="startTimers" class="start-timers" disabled>Start Timers</button> | 
+    <input type="text" id="konu" placeholder="Work Subject" style="width: 343px;height: 34px;"> | 
+    <span id="elapsedTime" class="elapsed-time">Elapsed Time: 0:00</span>
+  </div>
+  <ul id="timerList" class="timer-list"></ul>
+
+  <script>
+    const timerForm = document.getElementById('timerForm');
+    const timerList = document.getElementById('timerList');
+    const startTimersButton = document.getElementById('startTimers');
+    const elapsedTimeElement = document.getElementById('elapsedTime');
+    let timers = [];
+    let currentTimerIndex = 0;
+    let elapsedSeconds = 0;
+    let elapsedInterval;
+
+    // Add Timer Handler
+    timerForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const purposeInput = document.getElementById('purposeInput');
+      const minutesInput = document.getElementById('minutesInput');
+      const tagsInput = document.getElementById('tagsInput');
+
+      const purpose = purposeInput.value.trim();
+      const minutes = parseInt(minutesInput.value);
+      const tags = tagsInput.value;
+
+      if (purpose && minutes > 0 && tags.trim()) {
+        addTimer(purpose, minutes, tags.split(',').map(tag => tag.trim()));
+        purposeInput.value = '';
+        minutesInput.value = '';
+        tagsInput.value = '';
+        startTimersButton.disabled = false;
+      }
+    });
+
+    // Add Timer Function
+    function addTimer(purpose, minutes, tags) {
+      const timerItem = {
+        purpose: purpose,
+        duration: minutes * 60, // Convert to seconds
+        tags: tags,
+        element: null,
+      };
+
+      const listItem = document.createElement('li');
+      listItem.className = 'timer-item';
+
+      const tagsText = tags.join(', ');
+
+      listItem.innerHTML = `
+        <div>
+          <p><strong>Purpose:</strong> ${purpose}</p>
+          <p><strong>Time Left:</strong> <span class="time-left">${formatTime(minutes * 60)}</span></p>
+          <p><strong>Tags:</strong> ${tagsText}</p>
+        </div>
+        <button class="delete-timer">Delete</button>
+      `;
+
+      const deleteButton = listItem.querySelector('.delete-timer');
+      deleteButton.addEventListener('click', () => {
+        timers = timers.filter(t => t.element !== listItem);
+        listItem.remove();
+        if (timers.length === 0) startTimersButton.disabled = true;
+      });
+
+      timerItem.element = listItem;
+      timers.push(timerItem);
+      timerList.appendChild(listItem);
+    }
+
+    // Format Time Helper
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Start Timers Sequentially
+    startTimersButton.addEventListener('click', () => {
+      startTimersButton.disabled = true;
+      currentTimerIndex = 0;
+      elapsedSeconds = 0;
+      updateElapsedTime();
+      elapsedInterval = setInterval(() => {
+        elapsedSeconds++;
+        updateElapsedTime();
+      }, 1000);
+      startNextTimer();
+    });
+
+    function startNextTimer() {
+      if (currentTimerIndex >= timers.length) {
+        clearInterval(elapsedInterval);
+        alert('All timers have finished!');
+        return;
+      }
+
+      const currentTimer = timers[currentTimerIndex];
+      const timeLeftElement = currentTimer.element.querySelector('.time-left');
+      currentTimer.element.classList.add('active');
+
+      let remainingSeconds = currentTimer.duration;
+
+      const interval = setInterval(() => {
+        remainingSeconds--;
+        timeLeftElement.textContent = formatTime(remainingSeconds);
+
+        if (remainingSeconds <= 10) {
+          currentTimer.element.classList.add('shrinking');
+        }
+
+        if (remainingSeconds <= 0) {
+          clearInterval(interval);
+          currentTimer.element.classList.remove('active', 'shrinking');
+          currentTimerIndex++;
+          startNextTimer();
+        }
+      }, 1000);
+    }
+
+    // Update Elapsed Time Display
+    function updateElapsedTime() {
+      elapsedTimeElement.textContent = `Elapsed Time: ${formatTime(elapsedSeconds)}`;
+    }
+  </script>
+</body>
+</html>
